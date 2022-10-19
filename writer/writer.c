@@ -69,6 +69,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <assert.h>
 
 #define MODE_READ 0
 #define MODE_WRITE 1
@@ -92,9 +93,88 @@ uint8_t mode = MODE_READ;
 uint8_t clkAddress = 0x68;
 uint8_t tempAddress = 0x4d;
 
+char *returnDay(uint8_t num){
+    if(num == 0){
+        return("Noneday");
+        }
+    else if(num == 1){
+        return("Monday");
+        }
+    else if(num == 2){
+        return("Tuesday");
+        }
+    else if(num == 3){
+        return("Wednesday");
+        }
+    else if(num == 4){
+        return("Thursday");
+        }
+    else if(num == 5){
+        return("Friday");
+        }
+    else if(num == 6){
+        return("Saturday");
+        }
+    else if(num == 7){
+        return("Sunday");
+        }
+    else{
+        return("Elseday");
+        }
+    }
+
+void printRecord(int num, uint8_t record[3][8])
+{
+    const char days[72] = "Monday\0Tuesday\0Wednesday\0Thursday\0Friday\0Saturday\0Sunday\0";
+    //const char days[] = "Monday";
+    const int dictionary[7] = {0, 7, 15, 25, 34, 41, 50};
+    //printf("%d\n", record[0][0]);
+    
+    
+    if (record[num][7] == 0)
+    {
+        //printf("Trying to print\n");
+        printf("Record%d: %d/%d/%d %s %d:%d:%d PM\n", num, record[num][0], record[num][1], record[num][2], returnDay(record[num][3]), record[num][4], record[num][5], record[num][6]);
+        //printf("Day test: %s \n", days[0]);
+        //printf("Record %d: %d/%d/%d %s %d:%d:%d PM\n", num, record[num][0], record[num][1], record[num][2], "ppa", record[num][4], record[num][5], record[num][6]);
+    }
+    else
+    {
+        //printf("Trying to print\n");
+        printf("Record%d: %d/%d/%d %s %d:%d:%d AM\n", num, record[num][0], record[num][1], record[num][2], returnDay(record[num][3]), record[num][4], record[num][5], record[num][6]);
+        //printf("Day test: %s \n", days[0]);
+        //printf("Record %d: %d/%d/%d %s %d:%d:%d AM\n", num, record[num][0], record[num][1], record[num][2], "ppa", record[num][4], record[num][5], record[num][6]);
+    }
+}
+
+int bcdToDec(uint8_t hex)
+{
+    hex = 0x11;
+    assert(((hex & 0xF0) >> 4) < 10); // More significant nybble is valid
+    assert((hex & 0x0F) < 10);        // Less significant nybble is valid
+    int dec = ((hex & 0xF0) >> 4) * 10 + (hex & 0x0F);
+    return dec;
+}
+
 char buf[MAX_LEN];
 int i;
 uint8_t data;
+  // Array yo store names of the days
+    /*const char days = *a[6];
+    a[0] = "Sunday";
+    a[1] = "Monday";
+    a[2] = "Tuesday";
+    a[3] = "Wednesday";
+    a[4] = "Thursday";
+    a[5] = "Friday";
+    a[6] = "Saturday";*/
+    
+    const char days[72] = "Monday\0Tuesday\0Wednesday\0Thursday\0Friday\0Saturday\0Sunday\0";
+    //const char days[] = "Monday";
+    
+    const int dictionary[7] = {0, 7, 15, 25, 34, 41, 50};
+    
+
 
 int main(int argc, char **argv)
 {
@@ -111,22 +191,13 @@ int main(int argc, char **argv)
     uint8_t day;
     uint8_t weekday;
 
-    // Array yo store names of the days
-    const char days *a[6];
-    a[0] = "Sunday";
-    a[1] = "Monday";
-    a[2] = "Tuesday";
-    a[3] = "Wednesday";
-    a[4] = "Thursday";
-    a[5] = "Friday";
-    a[6] = "Saturday";
-
+  
     //
-    uint8_t record[2][7] = {
+    uint8_t record[3][8] = {
         {1, 1, 1, 1, 0, 0, 0},
         {1, 1, 1, 1, 0, 0, 0},
         {1, 1, 1, 1, 0, 0, 0}
-    }
+    };
 
     // Inicializacion de comunicacion I2C
     if (!bcm2835_init())
@@ -145,29 +216,27 @@ int main(int argc, char **argv)
     bcm2835_i2c_setClockDivider(clk_div);
 
     // Loop start (READS EVERY 10 SECONDS)
-    while (true)
+    while (1)
     {
         // LOGIC
 
         // First we read the temper;ature and parse the byte
-
+        fprintf(stderr, "Slave address set to: %d\n", clkAddress);
         bcm2835_i2c_setSlaveAddress(clkAddress);
 
         // Writes the initial address (0)
         // Wbuff must be 0x00 and len must be 1 byte
-
-        {
             // Clears the wbuf
+            len = 1;
             memset(wbuf, 0, sizeof(wbuf));
             wbuf[0] = 0x00;
             data = bcm2835_i2c_write(wbuf, len);
-            printf("Write Succes = %d\n", data);
-        }
+            printf("Write Success = %d\n", data);
 
         // Reads 7 bytes, and parses data
         len = 7;
         data = bcm2835_i2c_read(buf, len);
-
+        printf("Read Result = %d\n", data);
         seconds = buf[0];
         minutes = buf[1];
         hour = buf[2];
@@ -186,6 +255,7 @@ int main(int argc, char **argv)
 
         // Then we parse each byte relevant to the clock register
 
+         fprintf(stderr, "Slave address set to: %d\n", tempAddress);
         bcm2835_i2c_setSlaveAddress(tempAddress);
 
         // Clears the wbuf
@@ -193,18 +263,37 @@ int main(int argc, char **argv)
         wbuf[0] = 0x00;
         len = 1;
         data = bcm2835_i2c_write(wbuf, len); // Sets to transmit temperature
-
+         printf("Write Success = %d\n", data);
         data = bcm2835_i2c_read(buf, len); // Reads the temperature
-
+        printf("Read Result = %d\n", data);
+        
+        for (i = 0; i < MAX_LEN; i++)
+        buf[i] = 'n';
+        data = bcm2835_i2c_read(buf, len);
+        printf("Read Result = %d\n", data);
+        for (i = 0; i < MAX_LEN; i++)
+        {
+            if (buf[i] != 'n')
+                printf("Read Buf[%d] = %x\n", i, buf[i]);
+        }
+    }
+        
         temp = buf[0];
 
         // After parsing this information, we check if the
 
         if (temp <= 30)
         {
-            record[0] = record[1];
-            record[1] = record[2];
-            record[2][0] = days;
+            for(int x = 0; x<8; x++)
+            {
+                record[0][x] = record[1][x];
+            }
+            for(int x = 0; x<8; x++)
+            {
+                record[1][x] = record[2][x];
+            }
+        
+            record[2][0] = day;
             record[2][1] = month;
             record[2][2] = year;
             record[2][3] = weekday;
@@ -215,41 +304,14 @@ int main(int argc, char **argv)
         }
 
         printf("RECEIVER> Temperature: %i C\n", temp);
+        printf("RECEIVER> " );
+        printRecord(0, record);
         printf("RECEIVER> ");
-        printRecord(0, record[0]);
+        printRecord(1, record);
         printf("RECEIVER> ");
-        printRecord(1, record[1]);
-        printf("RECEIVER> ");
-        printRecord(2, record[2]);
+        printRecord(2, record);
         sleep(10);
     } // Loop ENDS
 }
 
-void printRecord(int num, int record[7])
-{
-    const char days *a[6];
-    a[0] = "Sunday";
-    a[1] = "Monday";
-    a[2] = "Tuesday";
-    a[3] = "Wednesday";
-    a[4] = "Thursday";
-    a[5] = "Friday";
-    a[6] = "Saturday";
 
-    if (record[7] == 0)
-    {
-        printf("Record%d: %d/%d/%d %s %d:%d:%d PM\n", num, record[0], record[1], record[2], days[record[3]], record[4], record[5], record[6])
-    }
-    else
-    {
-        printf("Record%d: %d/%d/%d %s %d:%d:%d AM\n", num, record[0], record[1], record[2], days[record[3]], record[4], record[5], record[6])
-    }
-
-    int bcdToDec(uint8_t hex)
-    {
-        hex = 0x11;
-        assert(((hex & 0xF0) >> 4) < 10); // More significant nybble is valid
-        assert((hex & 0x0F) < 10);        // Less significant nybble is valid
-        int dec = ((hex & 0xF0) >> 4) * 10 + (hex & 0x0F);
-        return dec;
-    }
